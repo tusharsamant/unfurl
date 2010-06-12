@@ -1,0 +1,30 @@
+package pnm;
+
+my $C = 0;
+my $dir = "/tmp/ufpnm$$";
+
+print "mkdir $dir\n";
+
+sub new { bless \$c++, shift } 
+sub path { join '/', $dir, ${shift()} }
+sub gen_method {
+  my $m = shift;
+  no strict 'refs';
+  *{__PACKAGE__ . '::' . $m} = sub {
+    my $f = shift;
+    my $g = $f->new;
+    local ($\, $,) = ("\n", " ");
+    print('<'.$f->path, '>'.$g->path, $m, @_);
+    $g;
+  }
+}
+
+gen_method($_) for qw(pnmcat pnmcut pnmpaste cjpeg djpeg);
+
++{
+  __PACKAGE__ . '.read' , sub {
+    main::take(1);
+    my $f = __PACKAGE__->new();
+    print "cp '$R[0]' ", $f->path(), "\n";
+  }
+}

@@ -1,0 +1,10 @@
+use Data::Table;
+use DBI;
+
+{
+  'dt.load'  => sub { take 1; Data::Table::fromFile($R[0]) },
+  'sqlite.connect' => sub {
+    take 1; 
+    DBI->connect("dbi:SQLite:dbname=".$R[0],"","", {RaiseError=>1})
+  },
+}
