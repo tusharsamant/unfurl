@@ -1,0 +1,12 @@
+#!/usr/bin/env unfurl
+
+FileHandle:: require
+
+FileHandle:: [ env 'HOME' @ '/3lines.txt' . ] .new
+
+# print 3 lines
+dup ::getline print
+dup ::getline print
+dup ::getline print
+
+dump

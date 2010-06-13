@@ -1,0 +1,9 @@
+#!/usr/bin/env unfurl
+
+env "DEBUG" 0 !    # env puts the %ENV hash on stack
+
+[ 2 3 [ 4 3 + "asdasd" ] ] dump
+
+{ ( a b --  b a b ) } :tuck
+
+2 300 tuck dump

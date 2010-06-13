@@ -1,0 +1,6 @@
+#!/usr/bin/env unfurl
+
+# turn  top bottom left right  to   top left height width
+{ ( t b l r -- t l r l b t ) - ( r l h -- h r l ) - } :tlhw
+
+34 56 100 225 tlhw dump

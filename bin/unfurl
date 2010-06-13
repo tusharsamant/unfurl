@@ -21,6 +21,7 @@ my @ANON = ([]);
 
 # The Stack
 my @S = ();
+my @MARKS = ();
 
 # scratchpad aka "registers"
 our @R = ();
@@ -43,21 +44,24 @@ sub give (@) {
 # named functions -- a sub, or a [ sequence of words ]
 my %DICT;
 %DICT = (
-  '[]'  => sub { [] },
-  ','   => sub { take 2; push @{$R[0]}, $R[1]; $R[0] },
-  '{}'  => sub { {} },
-  ',,'  => sub { take 3; $R[0]->{$R[1]} = $R[2]; $R[0] },
+  '['   => sub { push @MARKS, $#S; return },
+  ']'   => sub {
+    if (!@MARKS) { die "']' found in weird place\n" }
+    [splice @S, pop(@MARKS) + 1]
+  },
   '@'   => sub {
     take 2;
     if    (ref($R[0]) eq 'HASH')  { $R[0]{$R[1]} }
     elsif (ref($R[0]) eq 'ARRAY') { $R[0][$R[1]] }
     else                          { die "cannot get\n" }
   },
+
   '!'   => sub {
     take 3;
     if    (ref($R[0]) eq 'HASH')  { $R[0]{$R[1]} = $R[2] }
     elsif (ref($R[0]) eq 'ARRAY') { $R[0][$R[1]] = $R[2] }
     else                          { die "cannot set\n" }
+    return;
   },
   '@!'   => sub {
     take 3;
@@ -81,20 +85,20 @@ my %DICT;
   pick  => sub {
     take 1;
     my $n = $R[0];
-    die "Underflow" if $n > $#R;
+    die "Underflow\n" if $n > $#R;
     $R[$#R-$n];
   },
   roll  => sub {
     take 1;
     my $n = $R[0];
-    die "Underflow" if $n > $#R;
+    die "Underflow\n" if $n > $#R;
     $R[$#R-$n];
   },
   print => sub { take 1; print $R[0]; return },
   '+'   => sub { take 2; $R[0]+$R[1] }, '-'  => sub { take 2; $R[0]-$R[1] },
   '*'   => sub { take 2; $R[0]*$R[1] }, '/'  => sub { take 2; $R[0]/$R[1] },
-  '.'   => sub { take 2; $R[0] . $R[1] }, qr => sub { take 1; qr/$R[0]/ },
-  env   => sub { take 1; $ENV{$R[0]} },
+  '.'   => sub { take 2; $R[0].$R[1] }, qr   => sub { take 1; qr/$R[0]/ },
+  env   => sub { \%ENV },
   iota  => sub { take 2; [$R[0] .. $R[1]] },
 
   for => sub {
@@ -124,6 +128,7 @@ my %DICT;
   'dump.anon'  => sub { _dump(\@ANON) },
   'dump.c'     => sub { _dump(\@COMPILING) },
   'dump.mod'   => sub { _dump(\@MODULES) },
+  'dump.marks' => sub { _dump(\@MARKS) },
   die          => sub { take 1; die $R[0] },
 
   dict => sub {
@@ -136,8 +141,8 @@ my %DICT;
   },
   lib => sub { take 1; push @LIB, $R[0]; return },
   require => sub {
-    die "nothing to require" unless @MODULES;
-    for (@MODULES) { s{::}{/}g; s{^/}{}; require($_ . '.pm') }
+    die "nothing to require\n" unless @MODULES;
+    for (@MODULES) { s{::}{/}g; s{/$}{}; require($_ . '.pm') }
     @MODULES = ();
     return
   },
@@ -148,14 +153,19 @@ my ($line, $char);
 eval {
   execute(lexed(join '', <>));
 }; if ($@) {
-  die "$line $char\n" . Dumper({
-    MSG       => $@,
-    COMPILING => \@COMPILING,
-    ANON      => \@ANON,
-    VAR       => \%VAR,
-    S         => \@S,
-    R         => \@R,
-  }) . "\n";
+  if ($ENV{DEBUG}) {
+    die "$line $char\n" . Dumper({
+      MSG       => $@,
+      COMPILING => \@COMPILING,
+      ANON      => \@ANON,
+      VAR       => \%VAR,
+      S         => \@S,
+      R         => \@R,
+    }) . "\n";
+  }
+  else {
+    die "$line $char : $@";
+  }
 };
 
 sub execute {
@@ -188,7 +198,7 @@ sub execute {
         give &$tok;
       }
       elsif ($ref eq 'ARRAY') {
-        unshift @input, map {[$_,0,0]} @$tok;
+        unshift @input, map {[$_,$line,$char]} @$tok; # line:char stack dump
       }
       else {
         die "unexpected $ref ref\n";
@@ -205,9 +215,8 @@ sub execute {
       if (!$PERM) { die "')' found in weird place\n" }
       $PERM = genperm($PERM);
       if (@COMPILING) {
-        push @ANON, $PERM;
-        $PERM = $#ANON;
-        push @{$COMPILING[-1]}, \$PERM;
+        push @ANON, [ [$PERM, $line, $char] ];
+        push @{$COMPILING[-1]}, \(@ANON - 1);
       }
       else {
         &$PERM;
@@ -267,7 +276,7 @@ sub execute {
     elsif ($tok =~ s/^\.(?=.)//) {
       if (@MODULES) {
         my $m = pop @MODULES;
-        $m =~ s{^::}{};
+        $m =~ s{::$}{};
         take 1; give $m->$tok(@{$R[0]})
       }
       else {
@@ -279,6 +288,18 @@ sub execute {
           @R = ($obj, [splice @S, $scope+1]);
         }
         give $R[0]->$tok(@{$R[1]})
+      }
+    }
+
+    # Perl method, no args
+    elsif ($tok =~ s/^::(?=.)//) {
+      if (@MODULES) {
+        my $m = pop @MODULES;
+        $m =~ s{::$}{};
+        give $m->$tok()
+      }
+      else {
+        take 1; give $R[0]->$tok()
       }
     }
 
@@ -297,7 +318,7 @@ sub execute {
     elsif (exists $VAR{$tok}) { give $VAR{$tok} }
 
     # module handling
-    elsif ($tok =~ m{^\w*(::\w+)+$}) {
+    elsif ($tok =~ m{^((\w+::)+\w*)$}) {
       push @MODULES, $tok;
     }
 
@@ -351,7 +372,7 @@ sub genperm {
       }
     }
     else {
-      if (!$perm{$t}) { die "unknown identifier\n" };
+      if (!$perm{$t}) { die "unknown identifier $t\n" };
       push @$rhs, $perm{$t} - 1;
     }
   }
