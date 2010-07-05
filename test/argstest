@@ -1,0 +1,7 @@
+#!/usr/bin/env unfurl
+
+{ ![ ] } :args   # mark n deep, then close
+
+s( one two three 4 5 6 ) # six values on stack
+3 args dump
+3 args dump

@@ -1,40 +1,43 @@
 USING UNFURL
 
 The syntax of unfurl is minimal: the script is a sequence of
-whitespace-separated tokens, with the exceptions being single-quoted
-and double-quoted strings. Everything from a # sign to the end of
-line is ignored, unless the # is in a quoted string.
+whitespace-separated tokens, with the exceptions being single-quoted and
+double-quoted strings. Everything from a # sign to the end of line is
+ignored, unless the # is in a quoted string.
 
 An example script:
 
   #!/usr/bin/env unfurl
   'Hello, ' 'World' . print "\n" print
 
-The tokens are two strings, followed by ".", "print", another string, and
-"print" again. The Forth-ish model adopted in unfurl consists of a single
-stack of values that starts off empty. The effect of a literal is to push
-it on the stack.
+The tokens are two strings, followed by ".", "print", another string,
+and "print" again. The Forth-ish model adopted in unfurl consists of a
+single stack of values that starts off empty. The effect of a literal is
+to push it on the stack.
 
-The "." token has no literal value, nor a magic ("sigil") meaning as will
-be described, so its effect is to look it up in the dictionary. unfurl's
-built-in dictionary defines it as the equivalent of Perl string
-concatenation.
+After the first two tokens are processed, therefore, the stack has two
+strings.
 
-Overall, the stack, which had two strings on it, changes as follows: the
-top two values are popped, the concatenation applied, and the result 
+The "." token that comes next has no literal value, nor does it have a
+magic meaning, as will be described, so the effect is to look it up in
+the dictionary. unfurl's built-in dictionary defines it as the
+equivalent of Perl string concatenation.
+
+In sum, the stack, which had two strings on it, changes as follows: the
+top two values are popped, the concatenation applied, and the result
 pushed on the stack.
 
-"print" is another built-in: it takes a single value off the top of the
+"print" is another builtin: it takes a single value off the top of the
 stack and prints it. It returns nothing to the stack.
 
 By this time, "Hello, World" has been printed and there is nothing on
 the stack.
 
-The next token is a double-quoted string--the  effect is that a string with
-a single newline is now pushed on the stack. The "print" following it takes
-it off the stack and prints it.
+The next token is a double-quoted string--the  effect is that a string
+with a single newline is now pushed on the stack. The "print" following
+it takes it off the stack and prints it.
 
-The script is complete and exits.
+The script is then complete and exits.
 
 
 MORE EXAMPLES
@@ -42,29 +45,29 @@ MORE EXAMPLES
   #!/usr/bin/env unfurl
   1 2 3 + print "\n" print
 
-This will print 5 and a newline. 1 will remain on the stack at exit time.
+This prints 5 and a newline. 1 remains on the stack at exit time.
 
   3 * print
 
-This gives an underflow error: the built-in * expects two arguments.
+This gives an underflow error: the builtin * expects two arguments.
 
-Since printing a newline after anything seems to be a common need, we may
-define this:
+If printing a newline after something seems to be a common need, we may
+try something like this:
 
   { print "\n" print } :say
 
-This introduces a couple of new concepts. First, the token "{" has special
-meaning--it starts "compiling" the following tokens. The stack does not
-change. The compilation proceeds all the way to "}", where it ends. The
-resulting code reference ("anonymous function") is now placed on the stack.
+There are a couple of new concepts here. The token "{" has a special
+meaning--it begins "compiling" the following tokens. The stack does not
+change. The compilation proceeds up to "}", where it ends. The effect of
+"}" is to put the result of the compilation ("anonymous function") on
+the stack.
 
 Thus the effect of the code before the ":say" token is to leave an
 anonymous function on the stack. As for ":say", the colon is a magic
-sigil, which expects a code reference and binds it to the name
-following ":".
+sigil, which expects a function and binds it to the name following ":".
 
-Overall, this line defines a new function called "say" and the stack
-is left empty.
+In sum, the line defines a new function called "say" and the stack is
+left empty.
 
 Now you can use "say" anywhere you might have wanted to use the more
 laborious code:
@@ -82,14 +85,14 @@ Analogous to function definition, unfurl has variable assignment.
 
   4 >i
 
-The ">" sigil assigns to the variable i (creating it if necessary)
-the value on the stack. Following the above assignment,
+The ">" sigil assigns to the variable i (creating it if necessary) the
+top value on the stack. Following the above assignment,
 
   i 2 *
 
 will leave 8 on the stack, since the token i has now a defined meaning,
-namely the current value of i. To define an i-incrementing token, you
-could now say:
+namely to push the current value of i on the stack. To define an
+i-incrementing function, you could now say:
 
   { i 1 + >i } :incr-i
 
@@ -102,64 +105,66 @@ Something like
 
   {i 1 + >i}    # wrong
 
-will raise an error. This is because the first token is "{i", which has no
-meaning. Whitespace is all-important in unfurl--it is more or less the only
-important thing. This Forth-like convention keeps things simple.
+will result in an error. This is because the first token is "{i", which
+has no meaning. Whitespace is all-important in unfurl--it is more or
+less the only important thing. This Forth-like convention keeps the
+syntax simple.
 
 
 ASIDE
 
   { 1 + } :incr
 
-is a fine definition of a word that increments whatever is on stack.
-What if you did this, instead?
+is a definition of a word that increments whatever is on stack. What if
+you did this, instead?
 
   { 1 + } >incr1
 
-This will assign to the variable incr1 the code for incrementing. To
-run it you will have to do
+This will assign to the variable incr1 the code for incrementing. To run
+the code you will have to do this:
 
   incr1 execute
 
-and this is equivalent in every way to plain incr. It may be necessary
-to use this form sometimes (e.g. in map or reduce); it is basically
-deferred code.
+This is equivalent to a plain invocation of incr.
 
 
 PERL MAGIC
 
-There are two more types of token which need no pre-defined meaning
-and are interpreted magically. To begin with:
+There are two more types of token which need no pre-defined meaning and
+are interpreted magically. To begin with:
 
   Text::CSV
 
-This has the sequence '::'--unfurl hence adds the Perl module Text::CSV to a
-separate stack of modules. The token has no effect on the main stack or the
-rest of the input stream.
+This contains the character sequence '::'. unfurl hence adds the name of
+the Perl module Text::CSV to a separate stack of modules. The token has
+no effect on the main stack or the rest of the input stream.
 
 The first thing you would have to do with this "module stack" is to load
-them:
+its constituents:
 
   XML::Simple Text::CSV require
 
-require is a built-in that loads all modules in the module stack and clears
-the module stack.
+require is a builtin that loads all modules in the module stack and
+clears the module stack.
 
-If the module is top-level, you can make unfurl understand it by appending
-'::'. Example:
+If the module you need is top-level, you can make unfurl understand it
+by appending '::'. Example:
 
   FileHandle:: require
+
+Plain "FileHandle" will normally be looked up in the dictionary and may
+not be defined.
 
 
 MORE PERL MAGIC
 
-The '::' sigil denotes a method, which is looked up at runtime and hence
-doesn't need to be pre-defined:
+The '::' sigil invokes a method, which is looked up at runtime and hence
+doesn't need prior definition:
 
   Digest::MD5 ::new >checksum
 
-Will create a variable checksum, and assign the equivalent of
-MD5::Digest->new() to it. Later:
+will create a variable checksum, and assign the equivalent of
+Digest::MD5->new() to it. Later:
 
   checksum ::hexdigest print
 
@@ -168,24 +173,26 @@ will print the hexdigest.
 
 ARRAYS
 
-A method may also be called with the '.' sigil. In this case it expects an
-array of arguments on top of the object or class.
+A method may also be called with the '.' sigil. In this case it expects
+an array of arguments on top of the object or class.
 
-Arrays are constructed by means of two special tokens. '[' marks the
-current top of the stack. It does nothing else. ']' pops everything
-from the stack above the most recent mark, makes an array out of
-the values, erases the mark, and puts the array on top. Thus, we
-may extend the previous example as follows:
+Arrays are constructed by means of two special tokens, as follows: the
+token '[' stores a mark to the current top of the stack. It does nothing
+else. ']' pops everything from the stack above the most recent mark,
+makes an array out of the values, erases the mark, and puts the array on
+top of the stack. Thus, we may add details to the previous example as
+follows:
 
   Digest::MD5 ::new
   [ "first buffer" ] .add
   [ "second buffer" ] .add
   [ "third buffer" ] .add
-  ::hexdigest
-  print
+  ::hexdigest print
 
-Functions to make a hash out of an array, as well as the interface
-is under construction. As a foretaste:
+Needless to say, ::method is equivalent to [ ] .method.
+
+Functions to make a hash and other objects out of an array, as well as
+the interface to aggregates, are under construction. As a foretaste:
 
   [ ] % >a_hash
   a_hash "key1" "value1" !
@@ -193,53 +200,76 @@ is under construction. As a foretaste:
   a_hash "key1" "newval" @!   # assigns newval, leaves value1 on stack
 
   [ 'a'  'b' ] >an_array
-  an_array 'c' , 'd' ,        # push
+  an_array 'c' , 'd' , 12 ,   # push three more values
   an_array 1 @ print
   an_array 5 'number_five' !
   an_array 5 'numero_cinco' @!
 
-Needless to say, ::method is a short form of [ ] .method.
 
 PERMUTATIONS
 
-The final pair of tokens with special meaning are the parenthesis marks.
+The final two tokens with special meaning are the parenthesis marks.
 Just as braces delimit a function, parentheses delimit a special kind of
-function: a permutation, which rearranges the stack near its top. An
-example:
+function: a permutation, which rearranges the stack near its top. As an
+example, suppose the stack contains this:
 
   "2010-05" 114 "Bob" "Accounting" 300
+
+Following this with
+
   ( id name dept expense -- expense dept name )
 
 will change the stack to:
 
   "2010-05" 300 "Accounting" "Bob"
 
-Presumably a previous function left 5 values on stack, of which only
-4 are needed, and in another order.
+Presumably, a previous function left 5 values on stack, of which only 4
+are needed, and in another order.
 
-The tokens id, name, dept etc have unrelated meanings inside and outside the
-permutation.
+The tokens id, name, dept etc have unrelated meanings inside and outside
+the permutation.
 
-Some ancient stack twiddling functions rewritten in this fashion:
+Some time-honored stack-twiddling functions rewritten in this fashion:
 
+  { ( a -- ) } :drop
   { ( a -- a a ) } :dup
   { ( a b -- b a ) } :swap
   { ( a b c -- b c a ) } :rot
   { ( a b c d -- c d a b ) } :2swap
 
-etc.
-
 
 LOOPS, CONDITIONALS, ITERATORS
 
-To be written.
+To be written. The basic idea is the function "do" which takes two
+function refs, iter and action:
+
+    iter action do
+
+The above executes iter, placing a possibly undefined result on the
+stack. If undefined, processing proceeds beyond "do". If defined, action
+is executed and the process repeated.
 
 
-LOADING LIBRARIES AND ADDING MORE Perl-DRIVING FUNCTIONS
+LOADING LIBRARIES AND ADDING Perl-DRIVING FUNCTIONS
 
-To be written. See lib/uf/*
+Arbitrary unfurl functions can be defined from Perl source files. The
+built-in "dict" searches file names from the library path, which is
+currently hard-coded to . (current directory) and ~/lib/uf. The Perl
+files need to return a hash, from function names to code refs.
+
+The code in the code refs communicates with the stack by means of two
+functions: give(@) and take($). take(n) picks n elements off the stack
+(erroring on underflow) and places them in a globally available array
+@R. It also returns @R, if you need private names or don't expect @R to
+survive.
+
+The code typically just needs to return with the intended result, which
+unfurl hands off to give(). give places its arguments on the stack and
+clears @R.
+
+This is probably a little inconvenient and may change.
 
 
-AVAILABLE Perl GLUE
+BUILTINS, AVAILABLE LIBRARIES, AND Perl GLUE
 
 Need to code: i/o, sql gen, regex, graphicsmagick, xml and json

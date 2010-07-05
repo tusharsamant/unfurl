@@ -1,0 +1,13 @@
+#!/usr/bin/env unfurl
+
+[ ] [ 1 2 3 4 ] dump reset
+
+"\n\nreboxed\n" print
+1 5 .. ,[ 'd' 'x' ] dump reset
+
+"\n\noverloaded comma\n" print
+1 5 ..
+"E" "G" .. ,
+s[ arbitrary words 3+4 etc et%$$c ] ,
+dump reset
+

@@ -1,0 +1,10 @@
+v0.1.3
+
+qw() style quoted words by means of s[ ... ] and s( ... ) ops
+manipulation of marks by means of ![ and other ops
+if and cond ops
+do op iterating over numerical scalar, array or hash
+last and next for do loop
+modules are now just strings
+require-as for aliasing modules to short names
+beginning of tests

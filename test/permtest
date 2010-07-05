@@ -1,0 +1,6 @@
+#!/usr/bin/env unfurl
+
+2 3 4 5 ( a s d x -- x a d ) dump reset
+
+{ ( t b l r -- t b l r b t ) - ( l r h -- h r l ) - } :tbhw
+34 56 100 225 tbhw dump reset

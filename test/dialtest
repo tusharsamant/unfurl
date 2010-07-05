@@ -1,0 +1,16 @@
+#!/usr/bin/env unfurl
+
+env "DEBUG" 0 !
+
+"imgsize.uf" dict
+{ 0 swap 0 swap imgsize drop } :frame
+{ ( a b c d -- a b c d a b c d ) } :frdup
+{ ( a b c d e f g h -- e f g h a b c d ) } :frswap
+{ swap 2 / swap 2 / } :half
+{ } :slide-right
+{ } :slide-left
+{ } :slide-up
+{ } :slide-down
+
+"/sites/localhost/tentet.umbrellamusic.org/images/IN_tentet_group.jpg"
+frame frdup half half frswap dump

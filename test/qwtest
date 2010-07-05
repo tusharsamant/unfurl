@@ -1,0 +1,9 @@
+#!/usr/bin/env unfurl
+
+'A' 'Z' .. {
+  swap drop                        # forget index
+  dup "Yes " swap . "\n" . swap    # "Yes X" "X"
+  'G' le { drop next } swap if     #
+  print
+} do
+

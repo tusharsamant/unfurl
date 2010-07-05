@@ -1,20 +1,22 @@
 unfurl is an attempt to speed up and simplify writing Perl scripts.
 
-The method is a hybrid of Forth and Perl, with some ad hoc features thrown in.
+The method is a hybrid of Forth and Perl, with some ad hoc features
+thrown in.
 
-As in Forth, the script consists of an input stream, the computation
+As in Forth, a program consists of an input stream, the computation
 happens on a stack, and functions ("words") are stored in a dictionary.
 
-As in Perl, certain tokens take on special meanings at runtime, depending on
-their appearance--typically a "sigil".
+As in Perl, certain tokens take on special meanings at runtime,
+depending on their appearance--typically marked by a "sigil".
 
-Other qualities of Forth--e.g. smallness and efficiency--are absent. unfurl
-is only as light and fast as Perl, and Perl-friendliness is the priority,
-not theoretical purity.
+Virtues of Forth other than simplicity and concision--e.g. size and
+efficiency--are absent. unfurl is at most as light and fast as Perl, and
+Perl-friendliness is the priority. Moreover, all of it is interpreted,
+though the word "compilation" is occasionally used in the docs.
 
-unfurl is written in Perl. There are no dependencies--the base installation
-of Perl 5.8 is enough to run it.
+unfurl is written in Perl. It depends on nothing but the base
+installation of Perl 5.8.
 
 The present version is very Unix-centric.
 
-Please read doc/intro to start using unfurl.
+Read doc/intro to start using unfurl.

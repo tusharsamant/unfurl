@@ -1,0 +1,14 @@
+#!/usr/bin/env unfurl
+
+env "DEBUG" 0 !
+
+# count i down to 0
+{ >i { i 1 - >i  i 0 > } } :times
+
+# iterate one step fib
+{ ( a b -- b a b ) + } :fib1
+0 1  7 times { drop fib1 } do  print drop " = fib(7)\n" print
+
+# abstract the above : construct loop and start it off on 0 1
+{ times 0 1 ( loop n u -- n u loop ) { drop fib1 } do swap drop } :fib
+12 fib print " = fib(12)\n" print

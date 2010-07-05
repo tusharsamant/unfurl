@@ -1,0 +1,15 @@
+#!/usr/bin/env unfurl
+
+s[
+  FileHandle  F
+  Digest::MD5 MD5
+] require-as
+
+{ ![ ] } :arg
+
+F s[ itertest ] .new  MD5 ::new
+
+# { ( fh md -- fh md fh ) ::getline } { [ ] swap , .add } do
+{ ( fh md -- fh md fh ) ::getline }   { 1 arg      .add } do
+
+::hexdigest print  ::close

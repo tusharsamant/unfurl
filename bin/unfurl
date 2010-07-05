@@ -82,18 +82,6 @@ my %DICT;
   drop  => sub { take 1; return },
   dup   => sub { take 1; @R[0,0] },
   swap  => sub { take 2; @R[1,0] },
-  pick  => sub {
-    take 1;
-    my $n = $R[0];
-    die "Underflow\n" if $n > $#R;
-    $R[$#R-$n];
-  },
-  roll  => sub {
-    take 1;
-    my $n = $R[0];
-    die "Underflow\n" if $n > $#R;
-    $R[$#R-$n];
-  },
   print => sub { take 1; print $R[0]; return },
   '+'   => sub { take 2; $R[0]+$R[1] }, '-'  => sub { take 2; $R[0]-$R[1] },
   '*'   => sub { take 2; $R[0]*$R[1] }, '/'  => sub { take 2; $R[0]/$R[1] },
@@ -102,25 +90,24 @@ my %DICT;
   iota  => sub { take 2; [$R[0] .. $R[1]] },
 
   for => sub {
-    take 2;
-    my ($range, $f) = @R[0,1];
+    my ($range, $f) = take 2;
     for (my $i = 0; $i < @$range; $i++) {
       give $range->[$i], $i; call($f)
     }
     return
   },
   map => sub {
-    take 2;
-    my ($range, $f) = @R[0,1];
+    my ($range, $f) = take 2;
     my $result = [];
     for my $r (@$range) {
-      give $r; call($f); take 1;
-      push @$result, $R[0];
+      give $r;
+      call($f);
+      push @$result, take 1;
     }
     $result
   },
 
-  execute      => sub { take 1; call($R[0]); return },
+  execute      => sub { call(take 1); return },
   'dump'       => sub { _dump(\@S)    },
   'dump.dict'  => sub { _dump(\%DICT) },
   'dump.reg'   => sub { _dump(\@R)    },
@@ -129,7 +116,7 @@ my %DICT;
   'dump.c'     => sub { _dump(\@COMPILING) },
   'dump.mod'   => sub { _dump(\@MODULES) },
   'dump.marks' => sub { _dump(\@MARKS) },
-  die          => sub { take 1; die $R[0] },
+  die          => sub { die(take 1) },
 
   dict => sub {
     take 1;
@@ -139,12 +126,11 @@ my %DICT;
     while (my($w,$x) = each %$d) { $DICT{$w} = $x }
     return
   },
-  lib => sub { take 1; push @LIB, $R[0]; return },
+  lib => sub { push @LIB, take 1; return },
   require => sub {
     die "nothing to require\n" unless @MODULES;
     for (@MODULES) { s{::}{/}g; s{/$}{}; require($_ . '.pm') }
     @MODULES = ();
-    return
   },
 );
 
@@ -280,14 +266,13 @@ sub execute {
         take 1; give $m->$tok(@{$R[0]})
       }
       else {
-        take 2;
+        my($obj, $genarg) = take 2;
         if (ref($R[1]) eq 'SCALAR') {
-          my($obj, $genarg) = @R;
           my $scope = $#S;
           call($genarg);
-          @R = ($obj, [splice @S, $scope+1]);
+          $genarg = [splice @S, $scope+1];
         }
-        give $R[0]->$tok(@{$R[1]})
+        give $obj->$tok(@$genarg)
       }
     }
 

@@ -1,0 +1,22 @@
+#!/usr/bin/env unfurl
+
+s[ name t age 40 ] %                   # a hash
+{ "->" swap "\n" . . . print } do      # simple print
+
+{ print "\n" print } :say
+
+'--' say
+
+3 10 .. {
+  swap drop                  # forget index, keep value
+  dup { last } swap 6 > if   # last if value is > 6
+  say
+} do
+
+'--' say
+
+'I' 'Z' .. {
+  swap drop                    # forget index, keep value
+  dup { next } swap 'V' lt if  # next if value is lt 'V'
+  say
+} do
