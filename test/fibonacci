@@ -1,5 +1,6 @@
 #!/usr/bin/env unfurl
 
+# env is Perl's %ENV--set DEBUG to 0
 env "DEBUG" 0 !
 
 # count i down to 0
@@ -12,3 +13,6 @@ env "DEBUG" 0 !
 # abstract the above : construct loop and start it off on 0 1
 { times 0 1 ( loop n u -- n u loop ) { drop fib1 } do swap drop } :fib
 12 fib print " = fib(12)\n" print
+
+# 7 times f do  is better written as  7 f do
+# the above, with a global i etc, is unnecessary

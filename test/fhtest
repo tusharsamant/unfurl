@@ -1,6 +1,0 @@
-#!/usr/bin/env unfurl
-
-[ FileHandle:: 'F' ] require-as
-F s[ itertest ] .new
-{ dup ::getline } { print } do
-::close

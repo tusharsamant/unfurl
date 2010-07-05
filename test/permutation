@@ -1,6 +1,8 @@
 #!/usr/bin/env unfurl
 
+# random test
 2 3 4 5 ( a s d x -- x a d ) dump reset
 
+# given top bottom left right, convert to top bottom height width
 { ( t b l r -- t b l r b t ) - ( l r h -- h r l ) - } :tbhw
 34 56 100 225 tbhw dump reset

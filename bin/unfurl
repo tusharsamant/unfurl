@@ -234,8 +234,9 @@ my %DICT;
     take 1;
     while (my($f, $pre) = splice(@{$R[0]}, 0, 2)) {
       if (length($pre)) { $pre .= '.' }
-      dict($f, $pre);
+      dict($f, $pre)
     }
+    return
   },
 
   require => sub {

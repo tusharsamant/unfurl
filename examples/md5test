@@ -1,9 +1,0 @@
-#!/usr/bin/env unfurl
-
-Digest::MD5 require
-
-Digest::MD5 ::new
-[ "jfjfjfkfjhfhjfhgf" ] .add   # this method chains
-[ "jxexexexexfhjfhgf" ] .add
-[ "jfjfjf765765jfhgf" ] .add
-::hexdigest print

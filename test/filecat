@@ -1,0 +1,12 @@
+#!/usr/bin/env unfurl
+
+[ FileHandle:: 'F' ] require-as
+
+# cat a file
+{
+  1 ![ ] F swap .new
+  { dup ::getline } { print } do
+  ::close
+} :cat
+
+'iteration' cat

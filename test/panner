@@ -1,0 +1,21 @@
+#!/usr/bin/env unfurl
+
+# needs rethinking
+
+s[ imgsize I ] dict-as dump 
+
+{ 0 swap 0 swap I.size drop } :frame
+{ ( a b c d -- a b c d a b c d ) } :frdup
+{ ( a b c d e f g h -- e f g h a b c d ) } :frswap
+{ swap 2 / swap 2 / } :half
+{ ( a b c d -- b c d a ) + ( b c d a -- a b c d ) } :mvr
+{ -1 * mvr } :mvl
+{ ( a b c d -- a c d b ) + ( a c d b -- a b c d ) } :mvd
+{ -1 * mvd } :mvu
+
+# "/sites/localhost/tentet.umbrellamusic.org/images/IN_tentet_group.jpg" frame
+0 0 3081 1848 dump
+frdup   dump
+half half   dump
+frswap   dump
+100 mvr   dump

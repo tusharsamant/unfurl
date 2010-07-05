@@ -1,1 +1,1 @@
-use Image::Size; { imgsize => sub { imgsize(take(1)) } }
+use Image::Size; { size => sub { imgsize(take(1)) } }
