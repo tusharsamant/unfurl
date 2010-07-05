@@ -4,6 +4,8 @@ FileHandle:: require
 
 FileHandle:: [ env 'HOME' @ '/3lines.txt' . ] .new
 
+dump
+
 # print 3 lines
 dup ::getline print
 dup ::getline print

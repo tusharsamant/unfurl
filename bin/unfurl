@@ -5,10 +5,15 @@ use strict;
 use integer;
 use Data::Dumper; $Data::Dumper::Terse=1;
 
+my ($line, $char); # for error messages
+
 my @LIB = (".", "$ENV{HOME}/lib/uf");
 
 # functions being compiled
 my @COMPILING = ();
+
+# "qw" in the stream
+my $QW;
 
 # permutation, if being compiled--just all tokens, for postprocessing
 my $PERM = 0;
@@ -17,7 +22,7 @@ my $PERM = 0;
 my %VAR = ();
 
 # pile of functions--starts with a "reusable" null
-my @ANON = ([]);
+my @WORDS = ([]);
 
 # The Stack
 my @S = ();
@@ -26,44 +31,73 @@ my @MARKS = ();
 # scratchpad aka "registers"
 our @R = ();
 
-# separate treatment for modules
-my @MODULES = ();
-
 # populate scratchpad -- used by word implementations
-sub take ($) {
-  die "Underflow\n" if @S < $_[0];
-  @R = splice @S, -$_[0];
-}
+sub take ($) { die "Underflow\n" if @S < $_[0]; return(@R = splice @S, -$_[0]) }
 
 # return computed values -- used by word implementations
-sub give (@) {
-  push @S, @_;
-  @R = ()
-}
+sub give (@) { push @S, @_; @R = () }
+
+# mark stack position
+sub mark () { push @MARKS, $#S }
+
+# pop things above topmost mark
+sub skim () { die "No mark\n" unless @MARKS; splice @S, pop(@MARKS) + 1 }
+
+sub call ($);
+sub execute ($);
 
 # named functions -- a sub, or a [ sequence of words ]
 my %DICT;
 %DICT = (
-  '['   => sub { push @MARKS, $#S; return },
-  ']'   => sub {
-    if (!@MARKS) { die "']' found in weird place\n" }
-    [splice @S, pop(@MARKS) + 1]
-  },
-  '@'   => sub {
+   # indented like this for readability
+
+  '['  => sub {
+            mark; return
+          },
+  ']'  => sub {
+            my $skim; eval {$skim = [skim]};
+            if ($@) { die "']' found in weird place\n" }
+            $skim
+          },
+  ',[' => sub {
+            take 1; mark; @{$R[0]}
+          },
+  '![' => sub {
+            take 1;
+            $R[0] = $#S - $R[0];
+            if ($R[0] < -1) { die "underflow\n" }
+            @MARKS = sort { $a <=> $b } (@MARKS, $R[0]);
+            return
+          },
+  '!]' => sub {
+            pop @MARKS if @MARKS;
+            return
+          },
+  ','  => sub {
+            my ($base, $plus) = take 2;
+            push @$base, ref($plus) eq 'ARRAY' ? @$plus : $plus;
+            $base
+          },
+
+
+  # normal indent
+
+  '%' => sub { take 1; +{@{$R[0]}} },
+  '@' => sub {
     take 2;
     if    (ref($R[0]) eq 'HASH')  { $R[0]{$R[1]} }
     elsif (ref($R[0]) eq 'ARRAY') { $R[0][$R[1]] }
     else                          { die "cannot get\n" }
   },
 
-  '!'   => sub {
+  '!' => sub {
     take 3;
     if    (ref($R[0]) eq 'HASH')  { $R[0]{$R[1]} = $R[2] }
     elsif (ref($R[0]) eq 'ARRAY') { $R[0][$R[1]] = $R[2] }
     else                          { die "cannot set\n" }
     return;
   },
-  '@!'   => sub {
+  '@!' => sub {
     take 3;
     my $result;
     if (ref($R[0]) eq 'HASH') {
@@ -83,58 +117,146 @@ my %DICT;
   dup   => sub { take 1; @R[0,0] },
   swap  => sub { take 2; @R[1,0] },
   print => sub { take 1; print $R[0]; return },
+  reset => sub { @S=@MARKS=@R=() },
   '+'   => sub { take 2; $R[0]+$R[1] }, '-'  => sub { take 2; $R[0]-$R[1] },
   '*'   => sub { take 2; $R[0]*$R[1] }, '/'  => sub { take 2; $R[0]/$R[1] },
-  '.'   => sub { take 2; $R[0].$R[1] }, qr   => sub { take 1; qr/$R[0]/ },
-  env   => sub { \%ENV },
-  iota  => sub { take 2; [$R[0] .. $R[1]] },
+  '.'   => sub { take 2; $R[0].$R[1] },
+  '=='  => sub { take 2; $R[0] == $R[1] },
+  '<'   => sub { take 2; $R[0] < $R[1] },
+  '>'   => sub { take 2; $R[0] > $R[1] },
+  '<='  => sub { take 2; $R[0] <= $R[1] },
+  '>='  => sub { take 2; $R[0] >= $R[1] },
+  '!='  => sub { take 2; $R[0] != $R[1] },
+  'eq'  => sub { take 2; $R[0] eq $R[1] },
+  'ne'  => sub { take 2; $R[0] ne $R[1] },
+  'gt'  => sub { take 2; $R[0] gt $R[1] },
+  'lt'  => sub { take 2; $R[0] lt $R[1] },
+  'ge'  => sub { take 2; $R[0] ge $R[1] },
+  'le'  => sub { take 2; $R[0] le $R[1] },
 
-  for => sub {
-    my ($range, $f) = take 2;
-    for (my $i = 0; $i < @$range; $i++) {
-      give $range->[$i], $i; call($f)
+  env   => sub { \%ENV },
+  '..'  => sub { take 2; [$R[0] .. $R[1]] },
+
+  if => sub {
+    my ($then, $test) = take 2;
+    call $then if $test;
+    return
+  },
+
+  cond => sub {
+    my($cl) = take 1;
+    my ($test, $then);
+    while (@$cl) {
+      ($test, $then) = splice(@$cl, 0, 2);
+      if ($test) {
+        call $then; last
+      }
     }
     return
   },
-  map => sub {
-    my ($range, $f) = take 2;
-    my $result = [];
-    for my $r (@$range) {
-      give $r;
-      call($f);
-      push @$result, take 1;
+
+  do => sub {
+    my ($iter, $f, @res) = take 2;
+    my $ref = ref($iter);
+    if (!$ref) {
+      $iter += 0;
+      if ($iter > 0) {
+        ITER_N: for (1 .. $iter) {
+          eval { call $f };
+          if ($@) {
+            if ($@ =~ /^last\b/) { last ITER_N }
+            elsif ($@ !~ /^next\b/) { die $@ }
+          }
+        }
+      }
     }
-    $result
+    elsif ($ref eq 'ARRAY') {
+      ITER_A: for my $i (0 .. $#$iter) {
+        push @S, $i, $iter->[$i];
+        eval { call $f };
+        if ($@) {
+          if ($@ =~ /^last\b/) { last ITER_A }
+          elsif ($@ !~ /^next\b/) { die $@ }
+        }
+      }
+    }
+    elsif ($ref eq 'HASH') {
+      ITER_H: while (my($k, $v) = each %$iter) {
+        push @S, $k, $v;
+        eval { call $f };
+        if ($@) {
+          if ($@ =~ /^last\b/) { last ITER_H }
+          elsif ($@ !~ /^next\b/) { die $@ }
+        }
+      }
+    }
+    else {
+      ITER: {
+        mark;
+        call $iter;
+        if ((@res = skim) && $res[0]) {
+          push @S, @res;
+          eval { call $f };
+          if ($@) {
+            if ($@ =~ /^last\b/) { last ITER }
+            elsif ($@ !~ /^next\b/) { die $@ }
+          }
+          redo ITER
+        }
+      }
+    }
+    return
   },
 
-  execute      => sub { call(take 1); return },
+  next => sub { die "next makes no sense" },
+  last => sub { die "last makes no sense" },
+  die  => sub { die(take 1) },
+
+  execute      => sub { call take 1 },
   'dump'       => sub { _dump(\@S)    },
   'dump.dict'  => sub { _dump(\%DICT) },
   'dump.reg'   => sub { _dump(\@R)    },
   'dump.var'   => sub { _dump(\%VAR)  },
-  'dump.anon'  => sub { _dump(\@ANON) },
+  'dump.words' => sub { _dump(\@WORDS) },
   'dump.c'     => sub { _dump(\@COMPILING) },
-  'dump.mod'   => sub { _dump(\@MODULES) },
   'dump.marks' => sub { _dump(\@MARKS) },
-  die          => sub { die(take 1) },
+
+  lib => sub { push @LIB, take 1; return },
 
   dict => sub {
-    take 1;
-    my $d;
-    for (@LIB) { $d = do("$_/$R[0]") and last }
-    if (!$d) { die "require\n" }
-    while (my($w,$x) = each %$d) { $DICT{$w} = $x }
+    my ($f) = take 1;
+    $f = [$f] if !ref($f); # extra benefit
+    dict($_, '') for @$f;
     return
   },
-  lib => sub { push @LIB, take 1; return },
-  require => sub {
-    die "nothing to require\n" unless @MODULES;
-    for (@MODULES) { s{::}{/}g; s{/$}{}; require($_ . '.pm') }
-    @MODULES = ();
-  },
-);
 
-my ($line, $char);
+  'dict-as' => sub {
+    take 1;
+    while (my($f, $pre) = splice(@{$R[0]}, 0, 2)) {
+      if (length($pre)) { $pre .= '.' }
+      dict($f, $pre);
+    }
+  },
+
+  require => sub {
+    my ($m) = take 1; # see dict above
+    $m = [$m] if !ref($m);
+    for (@$m) { s{::}{/}g; s{/$}{}; require($_ . '.pm') }
+    return
+  },
+
+  'require-as' => sub {
+    take 1;
+    while (my($m, $name) = splice(@{$R[0]}, 0, 2)) {
+      $VAR{$name} = $m;
+      for ($m) {
+        s{::}{/}g; s{/$}{}; require($_ . '.pm');
+      }
+    }
+    return
+  },
+
+);
 
 eval {
   execute(lexed(join '', <>));
@@ -143,7 +265,7 @@ eval {
     die "$line $char\n" . Dumper({
       MSG       => $@,
       COMPILING => \@COMPILING,
-      ANON      => \@ANON,
+      WORDS     => \@WORDS,
       VAR       => \%VAR,
       S         => \@S,
       R         => \@R,
@@ -154,7 +276,7 @@ eval {
   }
 };
 
-sub execute {
+sub execute ($) {
   my @input = @{shift()};
   my($in, $tok, $ref, $l, $c);
 
@@ -175,7 +297,7 @@ sub execute {
 
     if ($ref = ref($tok)) {
       if ($ref eq 'SCALAR') {
-        unshift @input, @{$ANON[$$tok]};
+        unshift @input, @{$WORDS[$$tok]};
       }
       elsif ($ref eq 'REF') {
         give $$tok;
@@ -191,6 +313,21 @@ sub execute {
       }
     }
 
+    elsif (($tok eq 's[' or $tok eq 's(') and !$QW) {
+      $QW = [];
+    }
+    elsif ($QW) {
+      if ($tok eq ']') {
+        give $QW; $QW = undef
+      }
+      elsif ($tok eq ')') {
+        give @$QW; $QW = undef
+      }
+      else {
+        push @$QW, $tok
+      }
+    }
+
     elsif ($tok =~ /^#/) { next }
 
     elsif ($tok eq '(') {
@@ -201,8 +338,8 @@ sub execute {
       if (!$PERM) { die "')' found in weird place\n" }
       $PERM = genperm($PERM);
       if (@COMPILING) {
-        push @ANON, [ [$PERM, $line, $char] ];
-        push @{$COMPILING[-1]}, \(@ANON - 1);
+        push @WORDS, [ [$PERM, $line, $char] ];
+        push @{$COMPILING[-1]}, \(@WORDS - 1);
       }
       else {
         &$PERM;
@@ -220,17 +357,17 @@ sub execute {
       my $fn = pop @COMPILING;
       if (!$fn) { die "'}' found in weird place\n" };
       if (@$fn) {
-        push @ANON, $fn; $fn = $#ANON;
+        push @WORDS, $fn; $fn = $#WORDS
       }
       else {
-        $fn = 0; # reuse null function--an "optimizaton"
+        $fn = 0 # reuse null function--an "optimizaton"
       }
       # "code" is \integer, "deferred" is \\integer
       if (@COMPILING) {
-        push @{$COMPILING[-1]}, \\$fn;
+        push @{$COMPILING[-1]}, \\$fn
       }
       else {
-        give \$fn;
+        give \$fn
       }
     }
 
@@ -243,49 +380,38 @@ sub execute {
     # string
     elsif ($tok =~ /^'/) {
       $tok =~ s/^'(.*)'$/$1/sm or die "unterminated string\n";
-      give $tok;
+      give $tok
     }
 
     # string
     elsif ($tok =~ /^"/) {
       $tok =~ /"$/ or die "unterminated string\n";
-      give eval(qq{$tok});
+      give eval(qq{$tok})
     }
 
     # define function
-    elsif ($tok =~ s/^:([^:])/$1/) { take 1; $DICT{$tok} = $ANON[${$R[0]}] }
+    elsif ($tok =~ s/^:([^:])/$1/) {
+      my($f) = take 1;
+      $DICT{$tok} = ref($f) eq 'SCALAR' ? $WORDS[$$f] : $f
+    }
 
     # poke var
-    elsif ($tok =~ s/^>(?=.)//) { take 1; $VAR{$tok} = $R[0] }
+    elsif ($tok =~ s/^>(?=.)//) { ($VAR{$tok}) = take 1 }
 
     # Perl method
-    elsif ($tok =~ s/^\.(?=.)//) {
-      if (@MODULES) {
-        my $m = pop @MODULES;
-        $m =~ s{::$}{};
-        take 1; give $m->$tok(@{$R[0]})
-      }
-      else {
-        my($obj, $genarg) = take 2;
-        if (ref($R[1]) eq 'SCALAR') {
-          my $scope = $#S;
-          call($genarg);
-          $genarg = [splice @S, $scope+1];
-        }
-        give $obj->$tok(@$genarg)
-      }
+    elsif ($tok =~ s/^\.([^.])/$1/) {
+      my($obj, $args) = take 2;
+      # "obj" may be a module
+      if (!ref($obj)) { $obj =~ s{::$}{} }
+      give $obj->$tok(@$args)
     }
 
     # Perl method, no args
     elsif ($tok =~ s/^::(?=.)//) {
-      if (@MODULES) {
-        my $m = pop @MODULES;
-        $m =~ s{::$}{};
-        give $m->$tok()
-      }
-      else {
-        take 1; give $R[0]->$tok()
-      }
+      my($obj) = take 1;
+      # "obj" may be a module
+      if (!ref($obj)) { $obj =~ s{::$}{} }
+      give $obj->$tok()
     }
 
     elsif (my $f = $DICT{$tok}) {
@@ -293,7 +419,7 @@ sub execute {
         unshift @input, map {[$_,0,0]} @$f
       }
       elsif (ref($f) eq 'CODE')  {
-        give &$f;
+        give &$f
       }
       else {
         die "dict[$tok] not understood\n"
@@ -302,23 +428,29 @@ sub execute {
 
     elsif (exists $VAR{$tok}) { give $VAR{$tok} }
 
-    # module handling
+    # module--a slightly more regular string
     elsif ($tok =~ m{^((\w+::)+\w*)$}) {
-      push @MODULES, $tok;
+      give $tok
     }
 
     else { die "$tok not defined\n"; }
 
   }
+  return;
 }
 
-sub call {
+sub call ($) {
   my $f = shift;
-  $f = $ANON[$$f];
-  execute([map [$_,0,0], @$f]);
+  if (ref($f) eq 'CODE') {
+    give &$f;
+  }
+  else {
+    $f = $WORDS[$$f];
+    execute([map [$_,$line,$char], @$f]);
+  }
 }
 
-sub _dump { print STDERR Dumper(@_); return } 
+sub _dump { print STDERR Dumper(@_); return }
 
 sub lexed {
   # tokens and whitespace
@@ -362,4 +494,13 @@ sub genperm {
     }
   }
   sub { take($taken); give(@R[@$rhs]) };
+}
+
+sub dict {
+  my ($f, $pre) = @_;
+  my $d;
+  for (@LIB) { $d = do("$_/$f") and last }
+  if (!$d) { die "dict\n" }
+  while (my($w,$x) = each %$d) { $DICT{$pre.$w} = $x }
+  return
 }
