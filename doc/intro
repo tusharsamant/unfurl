@@ -133,19 +133,11 @@ PERL MAGIC
 There are two more types of token which need no pre-defined meaning and
 are interpreted magically. To begin with:
 
-  Text::CSV
+  Text::CSV require
 
-This contains the character sequence '::'. unfurl hence adds the name of
-the Perl module Text::CSV to a separate stack of modules. The token has
-no effect on the main stack or the rest of the input stream.
-
-The first thing you would have to do with this "module stack" is to load
-its constituents:
-
-  XML::Simple Text::CSV require
-
-require is a builtin that loads all modules in the module stack and
-clears the module stack.
+The first token contains the character sequence '::'. unfurl hence puts
+the string 'Text::CSV' on stack. The rule is just a simplification, to
+make modules look cleaner.
 
 If the module you need is top-level, you can make unfurl understand it
 by appending '::'. Example:
@@ -155,11 +147,29 @@ by appending '::'. Example:
 Plain "FileHandle" will normally be looked up in the dictionary and may
 not be defined.
 
+The word require does the requiring of the module.
+
+There is a variant form of require, called require-as. This expects an
+even-sized array, with pairs of module names and "namespaces". An example:
+
+  s[ FileHandle F  Text::CSV C  Digest::MD5 MD5 ] require-as
+
+This loads three modules (note that the s[ ] has obviated the need to
+monkey-name FileHandle), and defines three short tokens:
+
+  F s[ sheet.csv ] open
+  MD5 ::new
+  ( fh md -- fh md fh )
+  [ ::getline ]
+  .add
+  ::hexdigest print
+  ::close
+
 
 MORE PERL MAGIC
 
-The '::' sigil invokes a method, which is looked up at runtime and hence
-doesn't need prior definition:
+The '::' sigil, introduced in the last example above, invokes a method,
+which is looked up at runtime and hence doesn't need prior definition:
 
   Digest::MD5 ::new >checksum
 
@@ -191,8 +201,8 @@ follows:
 
 Needless to say, ::method is equivalent to [ ] .method.
 
-Functions to make a hash and other objects out of an array, as well as
-the interface to aggregates, are under construction. As a foretaste:
+The word % makes a hash out of an array. The words @ ! and @!
+implement get, put and get-put operations respectively:
 
   [ ] % >a_hash
   a_hash "key1" "value1" !
@@ -204,6 +214,51 @@ the interface to aggregates, are under construction. As a foretaste:
   an_array 1 @ print
   an_array 5 'number_five' !
   an_array 5 'numero_cinco' @!
+
+The word , (comma) pushes a value or an array on top on the array
+under it.
+
+The word ![ gives more freedom in placing marks--it consumes a numerical
+argument, and places a mark on the (remaining) stack at the appropriate
+position:
+
+  s( H He Li ) # three strings on stack
+  2 ![         # places mark "between" H and He
+  'Be' ]       # adds another string and closes array
+
+The net effect here is the same as 'H' [ 'He' 'Li' 'Be' ] .
+
+One application of this is:
+
+  { ![ ] } :args
+
+This defines a word which "clumps" the desired number of values on the
+stack:
+
+  s( H He Li Be ) 3 args
+
+will have the same effect as before. This could be used to pick a
+fixed number of arguments and ship it off to a method, for instance.
+
+
+LITERALS
+
+The s( word sometimes provides a quick way to put several literals on the
+stack. It resembles the Perl qw() op in certain ways--all tokens up to
+the next ) are interpreted as single-quoted values. Thus:
+
+  s( Hydrogen Helium Lithium )
+
+is equivalent to
+
+  'Hydrogen' 'Helium' 'Lithium'
+
+The s[ ] pair does the same, except, as may be anticipated, it executes
+appropriate marker logic to put an array of literals on the stack:
+
+  s[ H Hydrogen He Helium Li Lithium ] % >element
+
+for instance, will leave a hash with 3 keys on the stack.
 
 
 PERMUTATIONS
@@ -238,16 +293,64 @@ Some time-honored stack-twiddling functions rewritten in this fashion:
   { ( a b c d -- c d a b ) } :2swap
 
 
-LOOPS, CONDITIONALS, ITERATORS
+LOOPS
 
-To be written. The basic idea is the function "do" which takes two
-function refs, iter and action:
+Iteration is accomplished by means of the do function. The general form of
+invocation is:
 
     iter action do
 
-The above executes iter, placing a possibly undefined result on the
-stack. If undefined, processing proceeds beyond "do". If defined, action
-is executed and the process repeated.
+action is expected to be a function.
+
+iter can take three forms:
+
+  1. A number: if greater than 0, then action is executed iter times:
+
+    { ( a b -- b a b ) + } >fib-step
+    0 1 
+    13 fib-step do
+
+  The do on the third line transforms the 0 1 on the stack to 1 1, then
+  to 1 2, to 2 3, etc--i.e. it calculates Fibonacci numbers. One could
+  define:
+
+    {
+      0 1 ( N zero one -- zero one N )
+      { ( a b -- b a b ) + } do
+      swap drop
+    } :fib
+
+    13 fib print
+
+  2. An array or a hash: key/value pairs are successively placed on
+  the stack and action invoked. In the case of an array, keys are
+  indexes, which go from 0 to one less than the length of the array,
+  in that order. For a hash, it is whatever order Perl provides.
+
+    { { '->' swap "\n" . . . print } do } :pretty-print
+    [ name Pelham age 60 ] % pretty-print
+
+  3. A function: the semantics mirror Perl's while () { }.
+
+    { open-or-die { getline } { print } do } :cat
+    "somefile" cat
+
+The words next and last, if found within action, stop executing
+action at that point. next proceeds with the next iteration, and
+last terminates the loop. next and last outside do loops make
+unfurl die.
+
+CONDITIONALS
+
+There is only one form available at the moment--it is named if.
+
+  3 10 .. {
+    swap drop                  # forget index, keep value
+    dup { last } swap 6 > if   # last if value is > 6
+    say
+  } do
+
+A more general cond operator is planned.
 
 
 LOADING LIBRARIES AND ADDING Perl-DRIVING FUNCTIONS
