@@ -165,6 +165,11 @@ monkey-name FileHandle), and defines three short tokens:
   ::hexdigest print
   ::close
 
+In certain cases, require and require-as can define several functions. See
+the section on loading libraries below.
+
+unfurl adds ~/lib/uf to the library search path.
+
 
 MORE PERL MAGIC
 
@@ -358,7 +363,7 @@ LOADING LIBRARIES AND ADDING Perl-DRIVING FUNCTIONS
 Arbitrary unfurl functions can be defined from Perl source files. The
 built-in "dict" searches file names from the library path, which is
 currently hard-coded to . (current directory) and ~/lib/uf. The Perl
-files need to return a hash, from function names to code refs.
+files need to return a hashref, from function names to code refs.
 
 The code in the code refs communicates with the stack by means of two
 functions: give(@) and take($). take(n) picks n elements off the stack
@@ -370,7 +375,25 @@ The code typically just needs to return with the intended result, which
 unfurl hands off to give(). give places its arguments on the stack and
 clears @R.
 
-This is probably a little inconvenient and may change.
+Another way to define functions is through require or require-as : after
+requiring a module, these functions look for a sub called unfurl() in the
+module, which is expected to return a hashref as above.
+
+If require-as is used, the function names get defined under the prefix
+("namespace") that the module was aliased to. An example will clarify this:
+assume that tables.pm resides in e.g. ~/lib/uf (which, as mentioned above,
+is in the Perl search path for unfurl), and contains the sub unfurl. Then
+doing
+
+  s[ tables T ] require-as
+
+not only defines T, but also T.dir, T.verbose etc. What is assumed here,
+of course, is that tables::unfurl() returns a hashref with dir and verbose
+among the keys. If you did
+
+  tables:: require
+
+instead, the plain functions dir and verbose would be defined.
 
 
 BUILTINS, AVAILABLE LIBRARIES, AND Perl GLUE
