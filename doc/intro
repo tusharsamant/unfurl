@@ -395,6 +395,10 @@ among the keys. If you did
 
 instead, the plain functions dir and verbose would be defined.
 
+The Perl functions ::add_dict() and ::add_var() are also available, for
+last-minute definition of functions and variables. For their usage, see the
+unfurl function in lib/uf/tables.pm for now.
+
 
 BUILTINS, AVAILABLE LIBRARIES, AND Perl GLUE
 

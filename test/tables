@@ -1,0 +1,31 @@
+#!/usr/bin/env unfurl
+
+# incomplete
+
+s[ tables T ] require-as
+T.verbose
+
+# set working directory with T.dir
+'tables_test' >wd
+wd T.dir
+
+# tab/csv files happen to be in the same dir
+# call T.prepare on each
+
+# alias->name
+s[
+  A artists
+  E events
+  V venues
+] %
+
+# make wd friendlier
+wd '/' . >wd
+
+# iterate
+{  wd swap . T.prepare } do
+
+# try out defined vars
+E.date print "\n" print
+A.name print "\n" print
+V.zip print "\n" print

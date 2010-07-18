@@ -24,6 +24,12 @@ use constant GROUP  => 0;
 sub new { bless [], shift }
 
 # SQL mangling
+# the args are mostly documentation
+
+sub t_join {
+  my($self, $keep, $cols, $other, $other_keep) = @_;
+  push @{$self->[JOINS]}, [$keep, $cols, $other, $other_keep];
+}
 
 # DB mangling
 
@@ -59,29 +65,33 @@ sub prepare {
 
   chomp;
   $name =~ s{.*/}{};
-  ($cols, $insert) = deploy_table($name, $split->($_)) or return;
+  @cols = $split->($_);
+  for ($name, @cols) { s/\W+/_/g; $_ = lc($_) };
 
-  $cols--;
-
-  $dbh->begin_work;
-
-  my $progress = 0;
-  while (<$f>) {
-    chomp;
-    $insert->execute(($split->($_), ('')x$cols)[0..$cols]);
-  }
-  continue {
-    unless ($progress++ & 1023) {
-      verb('.'); $dbh->commit; $dbh->begin_work;
+  ($cols, $insert) = deploy_table($name, @cols);
+  
+  if ($insert) {
+    $cols--;
+    $dbh->begin_work;
+    my $progress = 0;
+    while (<$f>) {
+      chomp;
+      $insert->execute(($split->($_), ('')x$cols)[0..$cols]);
     }
+    continue {
+      unless ($progress++ & 1023) {
+        verb('.'); $dbh->commit; $dbh->begin_work;
+      }
+    }
+    $dbh->commit;
   }
-  $dbh->commit;
+  ($name, @cols);
 }
 
 sub deploy_table {
   my($name, @cols) = @_;
 
-  for ($name, @cols) { s/\W+/_/g; $_ = lc($_) };
+  # assume scrubbed
 
   eval {
     $dbh->do(
@@ -114,7 +124,13 @@ sub verb { if ($VERBOSE) { print STDERR @_ } }
 
 # interface
 sub unfurl {{
-  prepare => sub { my($t) = ::take(1); for (ref($t) ? @$t : $t) { prepare($_) } },
+  prepare => sub {
+    my($a, $t) = ::take(2);
+    my ($name, @cols) = prepare($t);
+    # make ALIAS.colname a var containing 'name.colname'
+    ::add_var({ map {$_, "$name.$_"} @cols }, "$a.");
+    return
+  },
   dir     => sub { ($DIR) = ::take(1) },
   verbose => sub { $VERBOSE = 1 },
   quiet   => sub { $VERBOSE = 0 },
@@ -127,13 +143,34 @@ __END__
 
 =head1 NAME
 
-tables -- row-column mangling via SQLite
+tables -- row-column munging through SQLite
 
-=head1 SYNOPSIS
+=head1 FUNCTIONS/FLAGS
 
-=head1 DESCRIPTION
+=over 4
 
-=head1 SEE ALSO
+=item B<set_dir>
+
+Designate a work directory, creating it if necessary. The file
+I<thedb.sqlite> in the directory is used as the sqlite3 database
+to do all munging.
+
+=item B<prepare(file)>
+
+Imports a tab-delimited or CSV file as a single table. The table's name is a
+scrubbed version of the file's basename. This is a no-op if the table
+exists.
+
+The first line is expected to have column names--these are also scrubbed
+before being used for table creation.
+
+All columns are type text and indexed.
+
+=item B<$VERBOSE>
+
+When (and only when) true, prints messages and progress to STDERR.
+
+=back
 
 =head1 AUTHOR
 

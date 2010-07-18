@@ -1,3 +1,7 @@
+v0.1.5
+
+add_var/add_dict available for external Perl modules
+
 v0.1.4
 
 further convenience for require/require-as

@@ -9,6 +9,9 @@ my ($line, $char); # for error messages
 
 my @LIB = (".", "$ENV{HOME}/lib/uf");
 
+#also for Perl
+use lib @LIB;
+
 # functions being compiled
 my @COMPILING = ();
 
@@ -45,6 +48,8 @@ sub skim () { die "No mark\n" unless @MARKS; splice @S, pop(@MARKS) + 1 }
 
 sub call ($);
 sub execute ($);
+sub add_dict ($$);
+sub add_var ($$);
 
 # named functions -- a sub, or a [ sequence of words ]
 my %DICT;
@@ -212,7 +217,7 @@ my %DICT;
   last => sub { die "last makes no sense" },
   die  => sub { die(take 1) },
 
-  execute      => sub { call take 1 },
+  execute      => sub { call(take 1) },
   'dump'       => sub { _dump(\@S)    },
   'dump.dict'  => sub { _dump(\%DICT) },
   'dump.reg'   => sub { _dump(\@R)    },
@@ -242,7 +247,12 @@ my %DICT;
   require => sub {
     my ($m) = take 1; # see dict above
     $m = [$m] if !ref($m);
-    for (@$m) { s{::}{/}g; s{/$}{}; require($_ . '.pm') }
+    for (@$m) {
+      s{::}{/}g; s{/$}{}; require($_ . '.pm');
+      if ($_->can('unfurl')) {
+        add_dict $_->unfurl(), "";
+      }
+    }
     return
   },
 
@@ -252,6 +262,9 @@ my %DICT;
       $VAR{$name} = $m;
       for ($m) {
         s{::}{/}g; s{/$}{}; require($_ . '.pm');
+        if ($_->can('unfurl')) {
+          add_dict $_->unfurl(), "$name.";
+        }
       }
     }
     return
@@ -502,6 +515,16 @@ sub dict {
   my $d;
   for (@LIB) { $d = do("$_/$f") and last }
   if (!$d) { die "dict\n" }
-  while (my($w,$x) = each %$d) { $DICT{$pre.$w} = $x }
+  add_dict $d, $pre;
   return
+}
+
+sub add_dict ($$) {
+  my ($d, $pre) = @_;
+  while (my($w,$x) = each %$d) { $DICT{$pre.$w} = $x }
+}
+
+sub add_var ($$) {
+  my ($d, $pre) = @_;
+  while (my($w,$x) = each %$d) { $VAR{$pre.$w} = $x }
 }
